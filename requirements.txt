@@ -1,0 +1,5 @@
+numpy==2.3.0
+matplotlib==3.10.3
+tqdm==4.67.1
+scikit-learn==1.7.0
+pydantic==2.11.7
