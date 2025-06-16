@@ -63,7 +63,7 @@ def get_experiment(name: ExperimentsAvailable) -> Tuple[Experiment, str]:
     Get the experiment configuration by name.
     """
     experiment_folder_path = join(
-        "results", name, datetime.now().strftime("%H:%M:%S - %d/%m/%Y")
+        "results", name, f'{datetime.now().strftime("%H:%M:%S - %d/%m/%Y")}'
     )
     os.makedirs(name=experiment_folder_path, exist_ok=True)
     if name == __four_room_with_successor.name:

@@ -1,6 +1,7 @@
 from os.path import join
 from typing import List
 
+import numba
 import numpy as np
 from numpy.typing import NDArray
 
@@ -131,6 +132,7 @@ class Foundation:
         option_value = self.w_subgoal[subgoal_idx] @ state_features
         return bool(stopping_value >= option_value)
 
+    @numba.jit(nopython=True)
     def td_error(
         self,
         cumulant: float | NDArray[np.floating],
@@ -146,6 +148,7 @@ class Foundation:
             - current_value
         )
 
+    @numba.jit(nopython=True)
     def UWT(
         self,
         w: NDArray,
@@ -160,6 +163,7 @@ class Foundation:
         e = gamma_lambda * e
         return w, e
 
+    @numba.jit(nopython=True)
     def vecUWT(
         self,
         w: NDArray,
