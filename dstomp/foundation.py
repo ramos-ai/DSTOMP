@@ -133,10 +133,10 @@ class Foundation:
 
     def td_error(
         self,
-        cumulant: float,
-        stopping_value: float,
-        current_value: float,
-        next_value: float,
+        cumulant: float | NDArray[np.floating],
+        stopping_value: float | NDArray[np.floating],
+        current_value: float | NDArray[np.floating],
+        next_value: float | NDArray[np.floating],
         stopping_prob: bool | int,
     ) -> float:
         return (
@@ -157,5 +157,19 @@ class Foundation:
     ) -> tuple[NDArray, NDArray]:
         e = rho * (e + gradient)
         w = w + alpha_delta * e
+        e = gamma_lambda * e
+        return w, e
+
+    def vecUWT(
+        self,
+        w: NDArray,
+        e: NDArray,
+        gradient: NDArray,
+        alpha_delta_vec: NDArray,
+        rho: float,
+        gamma_lambda: float,
+    ) -> tuple[NDArray, NDArray]:
+        e = rho * (e + gradient)
+        w = w + alpha_delta_vec.reshape(-1, 1) * e
         e = gamma_lambda * e
         return w, e

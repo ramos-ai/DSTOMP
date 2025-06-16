@@ -11,7 +11,7 @@ from dstomp.framework import DSTOMP
 from environment.gridworld import GridWorld
 from experiments import ExperimentsAvailable, get_experiment
 
-num_runs = 5
+num_runs = 100
 all_runs = []
 experiment, experiment_results_path = get_experiment(
     ExperimentsAvailable.LARGER_HALLWAY_LARGER_ROOM_WITH_SUCCESSOR
@@ -48,6 +48,10 @@ with Pool(processes=num_processes) as pool:
 with open(join(experiment_results_path, "all_runs.pkl"), "wb") as f:
     pickle.dump(all_runs, f)
 
+option_learning_logs = [run[0] for run in all_runs]
+option_learning_logs_mean = np.mean(option_learning_logs, axis=0)
+option_learning_logs_std = np.std(option_learning_logs, axis=0)
+
 planning = [run[2] for run in all_runs]
 planning_mean = np.mean(planning, axis=0)
 planning_std = np.std(planning, axis=0)
@@ -83,6 +87,17 @@ def plot_arrays(mean_array, std_array, plotting_info, plotting_name):
     save_fig_path = join(experiment_results_path, f"{plotting_name}.png")
     plt.savefig(f"{save_fig_path}", bbox_inches="tight")
 
+for subgoal_idx in range(len(option_learning_logs_mean)):
+    plot_arrays(
+        option_learning_logs_mean[subgoal_idx],
+        option_learning_logs_std[subgoal_idx],
+        {
+            "xlabel": "Off-Policy Steps",
+            "ylabel": "Initial Estimate: v_hat(s0)",
+            "title": f"Subgoal {subgoal_idx + 1} Option Learning",
+        },
+        f"subgoal_{subgoal_idx + 1}_option_learning",
+    )
 
 plot_arrays(
     planning_mean,

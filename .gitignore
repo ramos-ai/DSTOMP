@@ -194,3 +194,6 @@ cython_debug/
 .cursorindexingignore
 
 .vscode
+dstomp-env
+results
+playground.*

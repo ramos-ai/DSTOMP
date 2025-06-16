@@ -116,29 +116,33 @@ class ModelLearning:
             )
 
             # Learning the Transition model
-            # For the transition model we update each row of the W_transitions matrix
-            for j in range(self.foundation.env.num_states):
-                # TD Error for transition model
-                delta_n = self.foundation.td_error(
-                    0,
-                    next_state_features[j],
-                    self.foundation.W_transitions[option_idx][j] @ state_features,
-                    self.foundation.W_transitions[option_idx][j] @ next_state_features,
-                    should_stop,
-                )
+            # In the original paper, the transition model is learned for each state
+            # We introduce a vectorized version of the transition model learning
+            predicted_state_feature = (
+                self.foundation.W_transitions[option_idx] @ state_features
+            )
+            predicted_next_state_feature = (
+                self.foundation.W_transitions[option_idx] @ next_state_features
+            )
+            delta_vec = self.foundation.td_error(
+                0,
+                next_state_features,
+                predicted_state_feature,
+                predicted_next_state_feature,
+                should_stop,
+            )
 
-                # Learning Transition Model Weights
-                (
-                    self.foundation.W_transitions[option_idx][j],
-                    self.foundation.e_transitions[option_idx][j],
-                ) = self.foundation.UWT(
-                    self.foundation.W_transitions[option_idx][j],
-                    self.foundation.e_transitions[option_idx][j],
-                    state_features,
-                    self.alpha_p * delta_n,
-                    importance_sampling_ratio,
-                    self.foundation.gamma * self.lambda_ * (1 - should_stop),
-                )
+            (
+                self.foundation.W_transitions[option_idx],
+                self.foundation.e_transitions[option_idx],
+            ) = self.foundation.vecUWT(
+                self.foundation.W_transitions[option_idx],
+                self.foundation.e_transitions[option_idx],
+                state_features.reshape(-1, 1),
+                self.alpha_p * delta_vec,
+                importance_sampling_ratio,
+                self.foundation.gamma * self.lambda_ * (1 - should_stop),
+            )
 
             # Moving to the next state
             state = next_state

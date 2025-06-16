@@ -35,12 +35,17 @@ class GridWorld:
     ):
         self.room_array: NDArray[np.int_] = np.array(room_array)
         self.reward_map: NDArray[np.int_] = np.array(room_array)
+        self.room_height, self.room_width = self.room_array.shape
         if not 0 <= success_prob <= 1:
             raise ValueError("success_prob must be between 0 and 1")
         self.success_prob = success_prob
 
+        # Setting States
+        self.initial_state, self.goal_state = self.__get_initial_and_goal_states(
+            initial_and_goal_states
+        )
+
         # Setting maps
-        self.room_height, self.room_width = self.room_array.shape
         self.state_idx_to_coordinates, self.state_coordinates_to_idx = (
             self.get_state_maps()
         )
@@ -49,10 +54,6 @@ class GridWorld:
         self.num_states = len(self.state_idx_to_coordinates)
         self.num_actions = len(Actions)
 
-        # Setting States
-        self.initial_state, self.goal_state = self.__get_initial_and_goal_states(
-            initial_and_goal_states
-        )
         self.current_state: State = self.initial_state
         self.done = False
 
@@ -177,7 +178,9 @@ class GridWorld:
             plt.savefig(file_name, transparent=True, bbox_inches="tight")
         plt.show()
 
-    def plot_policy(self, policy_probs: NDArray[np.floating], file_name=None) -> None:
+    def plot_policy(
+        self, policy_probs: NDArray[np.floating], file_name=None, only_max: bool = False
+    ) -> None:
         # Reshape flattened policy into (num_states, num_actions)
         policy_matrix = policy_probs.reshape(self.num_states, self.num_actions)
         rgb_array = self.__get_rgb_array()
@@ -205,14 +208,24 @@ class GridWorld:
             exp_probs = np.exp(state_probs)
             probs = exp_probs / exp_probs.sum()
 
-            # Plot arrows for actions with probability > 0.1
-            for action in Actions:
-                prob = probs[action]
-                if prob > 0.1:  # Only show significant probabilities
-                    dx, dy = action_vectors[action]
-                    # Scale arrow length by probability
-                    arrow_length = prob * 0.4
-                    plt.arrow(x, y, dx * arrow_length, dy * arrow_length, **arrow_props)
+            if only_max:
+                # Plot only the action with highest probability
+                max_action = np.argmax(probs)
+                prob = probs[max_action]
+                dx, dy = action_vectors[Actions(max_action)]
+                arrow_length = prob * 0.4
+                plt.arrow(x, y, dx * arrow_length, dy * arrow_length, **arrow_props)
+            else:
+                # Plot arrows for actions with probability > 0.1
+                for action in Actions:
+                    prob = probs[action]
+                    if prob > 0.1:  # Only show significant probabilities
+                        dx, dy = action_vectors[action]
+                        # Scale arrow length by probability
+                        arrow_length = prob * 0.4
+                        plt.arrow(
+                            x, y, dx * arrow_length, dy * arrow_length, **arrow_props
+                        )
 
         # Configure grid
         plt.xticks(np.arange(-0.5, self.room_width, 1))
