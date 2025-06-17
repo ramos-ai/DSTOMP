@@ -1,4 +1,5 @@
 from enum import IntEnum
+from os.path import join
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -56,6 +57,10 @@ class GridWorld:
 
         self.current_state: State = self.initial_state
         self.done = False
+
+    def save_room(self, base_path: str):
+        np.save(join(f"{base_path}", "room_array.npy"), self.room_array)
+        np.save(join(f"{base_path}", "reward_map.npy"), self.reward_map)
 
     def get_state_maps(
         self,

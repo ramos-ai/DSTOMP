@@ -8,6 +8,53 @@ from numpy.typing import NDArray
 from environment.gridworld import Actions, GridWorld, State
 
 
+@numba.jit(nopython=True)
+def td_error_compute(
+    cumulant: float,
+    stopping_value: float,
+    current_value: float,
+    next_value: float,
+    stopping_prob: bool,
+    gamma: float,
+) -> float:
+    return (
+        cumulant
+        + int(stopping_prob) * stopping_value
+        + gamma * next_value * (1 - int(stopping_prob))
+        - current_value
+    )
+
+
+@numba.jit(nopython=True)
+def uwt_compute(
+    w: NDArray,
+    e: NDArray,
+    gradient: NDArray,
+    alpha_delta: float,
+    rho: float,
+    gamma_lambda: float,
+) -> tuple[NDArray, NDArray]:
+    e = rho * (e + gradient)
+    w = w + alpha_delta * e
+    e = gamma_lambda * e
+    return w, e
+
+
+@numba.jit(nopython=True)
+def vec_uwt_compute(
+    w: NDArray,
+    e: NDArray,
+    gradient: NDArray,
+    alpha_delta_vec: NDArray,
+    rho: float,
+    gamma_lambda: float,
+) -> tuple[NDArray, NDArray]:
+    e = rho * (e + gradient)
+    w = w + alpha_delta_vec.reshape(-1, 1) * e
+    e = gamma_lambda * e
+    return w, e
+
+
 class Foundation:
     def __init__(
         self,
@@ -132,7 +179,6 @@ class Foundation:
         option_value = self.w_subgoal[subgoal_idx] @ state_features
         return bool(stopping_value >= option_value)
 
-    @numba.jit(nopython=True)
     def td_error(
         self,
         cumulant: float | NDArray[np.floating],
@@ -141,14 +187,15 @@ class Foundation:
         next_value: float | NDArray[np.floating],
         stopping_prob: bool | int,
     ) -> float:
-        return (
-            cumulant
-            + int(stopping_prob) * stopping_value
-            + self.gamma * next_value * (1 - int(stopping_prob))
-            - current_value
+        return td_error_compute(
+            cumulant,
+            stopping_value,
+            current_value,
+            next_value,
+            stopping_prob,
+            self.gamma,
         )
 
-    @numba.jit(nopython=True)
     def UWT(
         self,
         w: NDArray,
@@ -158,12 +205,8 @@ class Foundation:
         rho: float,
         gamma_lambda: float,
     ) -> tuple[NDArray, NDArray]:
-        e = rho * (e + gradient)
-        w = w + alpha_delta * e
-        e = gamma_lambda * e
-        return w, e
+        return uwt_compute(w, e, gradient, alpha_delta, rho, gamma_lambda)
 
-    @numba.jit(nopython=True)
     def vecUWT(
         self,
         w: NDArray,
@@ -173,7 +216,4 @@ class Foundation:
         rho: float,
         gamma_lambda: float,
     ) -> tuple[NDArray, NDArray]:
-        e = rho * (e + gradient)
-        w = w + alpha_delta_vec.reshape(-1, 1) * e
-        e = gamma_lambda * e
-        return w, e
+        return vec_uwt_compute(w, e, gradient, alpha_delta_vec, rho, gamma_lambda)

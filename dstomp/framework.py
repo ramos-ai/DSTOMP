@@ -139,6 +139,7 @@ class DSTOMP:
         if self.experiment_results_path is not None:
             os.makedirs(self.experiment_results_path, exist_ok=True)
             self.successor.save_successor(self.experiment_results_path)
+            self.successor.env.save_room(self.experiment_results_path)
             stomp_foundation.save_vectors(self.experiment_results_path)
             with open(
                 join(self.experiment_results_path, "option_learning_logs.pkl"),

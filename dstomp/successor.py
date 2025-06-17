@@ -1,6 +1,5 @@
 from typing import List, Tuple
 from os.path import join
-import numba
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,7 +50,6 @@ class Successor:
         ]
         return subagoals_state_idx, subgoals_state
 
-    @numba.jit(nopython=True)
     def get_successor(self, off_policy_steps: int = 50_000):
         self.env.reset(
             states_to_exclude=self.unimportant_states_for_successor,
@@ -81,7 +79,6 @@ class Successor:
 
         return self.successor
 
-    @numba.jit(nopython=True)
     def cluster_successor(
         self,
         num_clusters: int | None = None,
@@ -121,7 +118,6 @@ class Successor:
 
         return medoids, cluster_labels, cluster_sizes.tolist()
 
-    @numba.jit(nopython=True)
     def get_num_clusters(
         self,
         test_cluster_range: Tuple[int, int] = (2, 30),
