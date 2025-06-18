@@ -1,7 +1,9 @@
-from typing import List, Tuple
+from concurrent.futures import ThreadPoolExecutor
 from os.path import join
+from typing import List, Tuple
 
 import matplotlib.pyplot as plt
+import numba
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.cluster import KMeans
@@ -13,9 +15,17 @@ from environment.gridworld import Actions, GridWorld, StateType
 SuccessorMatrix = NDArray[np.floating]
 
 
+@numba.jit(nopython=True)
+def _compute_distances(features: NDArray, center: NDArray) -> NDArray:
+    return np.sum((features - center) ** 2, axis=1)
+
+
 class Successor:
-    def __init__(self, env: GridWorld, successor_alpha=0.1, gamma=0.99):
+    def __init__(
+        self, env: GridWorld, successor_alpha=0.1, gamma=0.99, batch_size: int = 1000
+    ):
         self.gamma = gamma
+        self.batch_size = batch_size
 
         self.env = env
         self.unimportant_states_for_successor = [StateType.WALL]
@@ -29,10 +39,17 @@ class Successor:
             (self.env.num_states, self.env.num_states)
         )
 
+        # Pre-compute one-hot state representations
+        self.one_hot_states = np.zeros((self.env.num_states, self.env.num_states))
+        for i in range(self.env.num_states):
+            self.one_hot_states[i] = self.env.get_one_hot_state(
+                self.env.state_idx_to_coordinates[i]
+            )
+
         self.behavior_policy_probs: NDArray[np.floating] = (
             np.ones(self.env.num_actions) / self.env.num_actions
         )
-    
+
     def save_successor(self, base_path: str):
         np.save(join(f"{base_path}", "successor_representation.npy"), self.successor)
 
@@ -56,26 +73,52 @@ class Successor:
             set_as_property=True,
         )
 
+        # Pre-generate random actions for efficiency
+        actions = np.random.choice(
+            self.env.num_actions, size=off_policy_steps, p=self.behavior_policy_probs
+        )
+        # Create transition matrices for each action
+        num_states = self.env.num_states
+        transition_matrices = np.zeros((self.env.num_actions, num_states, num_states))
+
+        # Pre-compute transition matrices for each action
+        for action_idx in range(self.env.num_actions):
+            action = Actions(action_idx)
+            for state_idx in range(num_states):
+                current_state = self.env.state_idx_to_coordinates[state_idx]
+                # Save current state to restore it later
+                orig_state = self.env.current_state
+                self.env.current_state = current_state
+                next_state, _, _ = self.env.step(action)
+                # Restore original state
+                self.env.current_state = orig_state
+                next_state_idx = self.env.state_coordinates_to_idx[next_state]
+                transition_matrices[action_idx, state_idx, next_state_idx] = 1
+
         current_state = self.env.current_state
-        for _ in tqdm(range(off_policy_steps)):
-            action = np.random.choice(
-                self.env.num_actions, p=self.behavior_policy_probs
-            )
-            action = Actions(action)
-            next_state, _, _ = self.env.step(action)
+        num_batches = off_policy_steps // self.batch_size
 
-            current_state_idx = self.env.state_coordinates_to_idx[current_state]
-            current_state_one_hot_features = self.env.get_one_hot_state(current_state)
-            next_state_idx = self.env.state_coordinates_to_idx[next_state]
+        for batch in tqdm(range(num_batches)):
+            start_idx = batch * self.batch_size
+            end_idx = start_idx + self.batch_size
+            batch_actions = actions[start_idx:end_idx]
 
-            self.successor[current_state_idx] = (
+            # Get transition matrices for this batch of actions
+            batch_transitions = transition_matrices[batch_actions]
+
+            # Compute next states for entire batch
+            next_states = np.einsum("bij,jk->bik", batch_transitions, self.successor)
+
+            # Update successor matrix using vectorized operations
+            # Shape: (batch_size, num_states, num_states)
+            updates = (
                 1 - self.successor_alpha
-            ) * self.successor[current_state_idx] + self.successor_alpha * (
-                current_state_one_hot_features
-                + self.gamma * self.successor[next_state_idx]
+            ) * self.successor + self.successor_alpha * (
+                self.one_hot_states + self.gamma * next_states
             )
 
-            current_state = next_state
+            # Average updates over the batch
+            self.successor = np.mean(updates, axis=0)
 
         return self.successor
 
@@ -110,7 +153,7 @@ class Successor:
             cluster_states = features[cluster_mask]
             cluster_sizes[cluster_idx] = len(cluster_states)
 
-            distances = np.sum((cluster_states - centers[cluster_idx]) ** 2, axis=1)
+            distances = _compute_distances(cluster_states, centers[cluster_idx])
             medoid_idx = np.where(cluster_mask)[0][np.argmin(distances)]
             medoids.append(int(medoid_idx))
 
@@ -118,26 +161,56 @@ class Successor:
 
         return medoids, cluster_labels, cluster_sizes.tolist()
 
+    def __parallel_cluster_evaluation(
+        self, k: int, features: NDArray, random_seed: int
+    ) -> Tuple[float, float]:
+        kmeans = KMeans(
+            n_clusters=k, init="k-means++", random_state=random_seed, max_iter=300
+        )
+        preds = kmeans.fit_predict(features)
+
+        return (float(kmeans.inertia_), float(silhouette_score(features, preds)))
+
     def get_num_clusters(
         self,
         test_cluster_range: Tuple[int, int] = (2, 30),
         random_seed: int | None = 42,
+        do_parallel_execution: bool = False,
     ) -> int:
         cluster_range = range(test_cluster_range[0], test_cluster_range[1])
-        inertias: List[float] = []
-        silhouette_scores: List[float] = []
+        if do_parallel_execution:
+            with ThreadPoolExecutor() as executor:
+                futures = [
+                    executor.submit(
+                        self._parallel_cluster_evaluation,
+                        k,
+                        self.successor,
+                        random_seed,
+                    )
+                    for k in cluster_range
+                ]
 
-        for k in cluster_range:
-            kmeans = KMeans(n_clusters=k, init="k-means++", random_state=random_seed)
-            preds = kmeans.fit_predict(self.successor)
+                results = [future.result() for future in futures]
+            inertias, silhouette_scores = zip(*results)
+        else:
+            inertias: List[float] = []
+            silhouette_scores: List[float] = []
 
-            inertia = float(kmeans.inertia_)
-            sil_score = float(silhouette_score(self.successor, preds))
+            for k in cluster_range:
+                kmeans = KMeans(
+                    n_clusters=k, init="k-means++", random_state=random_seed
+                )
+                preds = kmeans.fit_predict(self.successor)
 
-            inertias.append(inertia)
-            silhouette_scores.append(sil_score)
+                inertia = float(kmeans.inertia_)
+                sil_score = float(silhouette_score(self.successor, preds))
 
-        self.__plot_inertia_and_silhouette(cluster_range, inertias, silhouette_scores)
+                inertias.append(inertia)
+                silhouette_scores.append(sil_score)
+
+        self.__plot_inertia_and_silhouette(
+            cluster_range, list(inertias), list(silhouette_scores)
+        )
         return cluster_range[np.argmax(silhouette_scores)]
 
     def __set_subgoals(self, medoids: List[int]):
