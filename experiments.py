@@ -11,10 +11,12 @@ from environment.room_design import (
     larger_hallway_larger_room,
     larger_room,
     stomp_four_room_design,
+    stomp_two_room_design,
 )
 
 
 class ExperimentsAvailable(StrEnum):
+    TWO_ROOM_WITH_SUCCESSOR = "two_room_with_successor_representation"
     FOUR_ROOM_WITH_SUCCESSOR = "four_room_with_successor_representation"
     LARGER_ROOM_WITH_SUCCESSOR = "larger_room_with_successor_representation"
     LARGER_HALLWAY_LARGER_ROOM_WITH_SUCCESSOR = (
@@ -25,17 +27,27 @@ class ExperimentsAvailable(StrEnum):
 class Experiment(BaseModel):
     name: str
     env_design: List[List[int]]
-    num_subgoals: int
+    num_subgoals_for_successor_representation: int
     off_policy_steps_for_successor_representation: int
     off_policy_steps_for_stomp_progression: int
     num_lookahead_operations: int
     hallways_states_info: Optional[Dict[int, State]] = None
 
 
+__two_room_with_successor = Experiment(
+    name="two_room_with_successor_representation",
+    env_design=stomp_two_room_design,
+    num_subgoals_for_successor_representation=4,
+    off_policy_steps_for_successor_representation=int(10e6),
+    off_policy_steps_for_stomp_progression=50_000,
+    num_lookahead_operations=6_000,
+    hallways_states_info={30: (7, 3)},
+)
+
 __four_room_with_successor = Experiment(
     name="four_room_with_successor_representation",
     env_design=stomp_four_room_design,
-    num_subgoals=5,
+    num_subgoals_for_successor_representation=5,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
     num_lookahead_operations=20_000,
@@ -45,16 +57,37 @@ __four_room_with_successor = Experiment(
 __larger_room_with_successor = Experiment(
     name="larger_room_with_successor_representation",
     env_design=larger_room,
-    num_subgoals=10,
+    num_subgoals_for_successor_representation=10,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
     num_lookahead_operations=20_000,
+    hallways_states_info={
+        56: (5, 3),
+        67: (16, 3),
+        45: (23, 2),
+        49: (27, 2),
+        99: (25, 4),
+        147: (3, 7),
+        148: (13, 7),
+        156: (27, 7),
+        235: (16, 11),
+        240: (25, 11),
+        277: (14, 13),
+        288: (27, 13),
+        363: (26, 16),
+        432: (25, 19),
+        477: (18, 21),
+        455: (23, 20),
+        554: (18, 24),
+        535: (27, 23),
+        612: (27, 26),
+    },
 )
 
 __larger_hallway_larger_room_with_successor = Experiment(
     name="larger_hallway_larger_room_with_successor_representation",
     env_design=larger_hallway_larger_room,
-    num_subgoals=10,
+    num_subgoals_for_successor_representation=10,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
     num_lookahead_operations=20_000,
@@ -69,7 +102,9 @@ def get_experiment(name: ExperimentsAvailable) -> Tuple[Experiment, str]:
         "results", name, f"{datetime.now().strftime('%H:%M:%S - %d/%m/%Y')}"
     )
     os.makedirs(name=experiment_folder_path, exist_ok=True)
-    if name == __four_room_with_successor.name:
+    if name == __two_room_with_successor.name:
+        return __two_room_with_successor, experiment_folder_path
+    elif name == __four_room_with_successor.name:
         return __four_room_with_successor, experiment_folder_path
     elif name == __larger_room_with_successor.name:
         return __larger_room_with_successor, experiment_folder_path

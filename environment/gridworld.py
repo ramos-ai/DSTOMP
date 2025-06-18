@@ -249,7 +249,7 @@ class GridWorld:
         rgb_array = self.__get_rgb_array()
 
         # Create plot
-        plt.figure(figsize=(12, 15))
+        plt.figure(figsize=(24, 30))
         plt.imshow(rgb_array, interpolation="nearest", aspect="equal")
 
         # Configure grid lines
@@ -272,7 +272,8 @@ class GridWorld:
                     ha='center', 
                     va='center',
                     fontsize=8,
-                    color='black'
+                    color='black',
+                    rotation=45
                 )
 
         # Mark the goal state
