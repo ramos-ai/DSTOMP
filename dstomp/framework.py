@@ -1,19 +1,22 @@
 import os
 import pickle
 from os.path import join
+from typing import Dict
 
 from dstomp.foundation import Foundation
 from dstomp.stomp_steps.model_learning import ModelLearning
 from dstomp.stomp_steps.option_learning import OptionLearning
 from dstomp.stomp_steps.planning import Planning
 from dstomp.successor import Successor
-from environment.gridworld import GridWorld
+from environment.gridworld import GridWorld, State
 
 
 class STOMP:
     def __init__(
         self,
-        foundation: Foundation,
+        env: GridWorld,
+        subgoal_states_info: Dict[int, State],
+        gamma: float = 0.99,
         alpha: float = 0.1,
         alpha_prime: float = 0.1,
         alpha_r: float = 0.1,
@@ -21,26 +24,95 @@ class STOMP:
         alpha_step_size: float = 1.0,
         lambda_: float = 0,
         lambda_prime: float = 0,
+        experiment_results_path: str | None = None,
     ):
-        self.foundation = foundation
+        self.experiment_results_path = experiment_results_path
+        self.subagoals_state_idx = list(subgoal_states_info.keys())
+        self.subgoals_state = list(subgoal_states_info.values())
+
+        self.stomp_foundation = Foundation(
+            env=env,
+            subgoals_state=self.subgoals_state,
+            subgoals_state_idx=self.subagoals_state_idx,
+            gamma=gamma,
+        )
+
         self.option_learning = OptionLearning(
-            foundation=foundation,
+            foundation=self.stomp_foundation,
             alpha=alpha,
             alpha_prime=alpha_prime,
             lambda_=lambda_,
             lambda_prime=lambda_prime,
         )
         self.model_learning = ModelLearning(
-            foundation=foundation,
+            foundation=self.stomp_foundation,
             alpha_r=alpha_r,
             alpha_p=alpha_p,
             lambda_=lambda_,
             lambda_prime=lambda_prime,
         )
         self.planning = Planning(
-            foundation=foundation,
+            foundation=self.stomp_foundation,
             alpha_step_size=alpha_step_size,
         )
+
+    def execute(
+        self,
+        num_lookahead_operations: int = 6_000,
+        off_policy_steps: int = 50_000,
+        experiment_folder_prefix: str = "stomp",
+    ):
+        print("[INFO] Starting STOMP execution...\n")
+
+        option_learning_logs = []
+        model_learning_logs = []
+
+        for subgoal_idx in range(len(self.subagoals_state_idx)):
+            print(
+                f"\n[INFO] Learning options for subgoal {subgoal_idx + 1}/{self.stomp_foundation.num_subgoals}"
+            )
+            initial_state_estimative = self.option_learning.learn_options(
+                subgoal_idx, off_policy_steps
+            )
+            option_learning_logs.append(initial_state_estimative)
+
+        for option_idx in range(self.stomp_foundation.num_options):
+            print(
+                f"\n[INFO] Learning model for option {option_idx + 1}/{self.stomp_foundation.num_options}, {'a Primitive Action' if option_idx < self.stomp_foundation.env.num_actions else 'a Full Option'}"
+            )
+            reward_model_errors, transition_model_errors = (
+                self.model_learning.learn_model(option_idx, off_policy_steps)
+            )
+            model_learning_logs.append((reward_model_errors, transition_model_errors))
+
+        print("\n[INFO] Planning with learned options and models...")
+        planning_logs = self.planning.plan_with_options(num_lookahead_operations)
+
+        if self.experiment_results_path is not None:
+            save_files_path = join(
+                self.experiment_results_path, experiment_folder_prefix
+            )
+            print("\n[INFO] Saving Files...")
+            os.makedirs(save_files_path, exist_ok=True)
+            self.stomp_foundation.env.save_room(save_files_path)
+            self.stomp_foundation.save_vectors(save_files_path)
+            with open(
+                join(save_files_path, "option_learning_logs.pkl"),
+                "wb",
+            ) as f:
+                pickle.dump(option_learning_logs, f)
+
+            with open(
+                join(save_files_path, "model_learning_logs.pkl"),
+                "wb",
+            ) as f:
+                pickle.dump(model_learning_logs, f)
+
+            with open(join(save_files_path, "planning_logs.pkl"), "wb") as f:
+                pickle.dump(planning_logs, f)
+            print(f"\n[INFO] Files saved on {save_files_path}")
+
+        return option_learning_logs, model_learning_logs, planning_logs
 
 
 class DSTOMP:
@@ -79,7 +151,10 @@ class DSTOMP:
         self.experiment_results_path = experiment_results_path
 
     def execute(
-        self, num_lookahead_operations: int = 6_000, off_policy_steps: int = 50_000
+        self,
+        num_lookahead_operations: int = 6_000,
+        off_policy_steps: int = 50_000,
+        experiment_folder_prefix: str = "dstomp",
     ):
         print("[INFO] Starting DSTOMP execution...\n")
         print("[INFO] Finding bottleneck states using Successor Representation")
@@ -90,17 +165,17 @@ class DSTOMP:
             self.off_policy_steps_for_successor_representation,
         )
 
-        stomp_foundation = Foundation(
-            env=self.env,
-            subgoals_state=subgoals_state,
-            subgoals_state_idx=subagoals_state_idx,
-            behavior_policy_probs=self.successor.behavior_policy_probs,
-            gamma=self.gamma,
-            successor_alpha=self.successor.successor_alpha,
-        )
+        print("\n[INFO] Saving Successor...")
+        save_files_path = join(self.experiment_results_path, experiment_folder_prefix)
+        self.successor.save_successor(save_files_path)
+
+        subgoal_states_info = {
+            subgoal_idx: subgoal_state
+            for subgoal_idx, subgoal_state in zip(subagoals_state_idx, subgoals_state)
+        }
 
         stomp_framework = STOMP(
-            foundation=stomp_foundation,
+            subgoal_states_info=subgoal_states_info,
             alpha=self.alpha,
             alpha_prime=self.alpha_prime,
             alpha_r=self.alpha_r,
@@ -110,53 +185,7 @@ class DSTOMP:
             lambda_prime=self.lambda_prime,
         )
 
-        option_learning_logs = []
-        model_learning_logs = []
-
-        for subgoal_idx in range(len(subagoals_state_idx)):
-            print(
-                f"\n[INFO] Learning options for subgoal {subgoal_idx + 1}/{self.num_subgoals}"
-            )
-            initial_state_estimative = stomp_framework.option_learning.learn_options(
-                subgoal_idx, off_policy_steps
-            )
-            option_learning_logs.append(initial_state_estimative)
-
-        for option_idx in range(stomp_foundation.num_options):
-            print(
-                f"\n[INFO] Learning model for option {option_idx + 1}/{stomp_foundation.num_options}, {'a Primitive Action' if option_idx < self.env.num_actions else 'a Full Option'}"
-            )
-            reward_model_errors, transition_model_errors = (
-                stomp_framework.model_learning.learn_model(option_idx, off_policy_steps)
-            )
-            model_learning_logs.append((reward_model_errors, transition_model_errors))
-
-        print("\n[INFO] Planning with learned options and models...")
-        planning_logs = stomp_framework.planning.plan_with_options(
-            num_lookahead_operations
+        print("\n[INFO] Starting STOMP framework")
+        return stomp_framework.execute(
+            num_lookahead_operations, off_policy_steps, experiment_folder_prefix
         )
-
-        if self.experiment_results_path is not None:
-            os.makedirs(self.experiment_results_path, exist_ok=True)
-            self.successor.save_successor(self.experiment_results_path)
-            self.successor.env.save_room(self.experiment_results_path)
-            stomp_foundation.save_vectors(self.experiment_results_path)
-            with open(
-                join(self.experiment_results_path, "option_learning_logs.pkl"),
-                "wb",
-            ) as f:
-                pickle.dump(option_learning_logs, f)
-
-            with open(
-                join(self.experiment_results_path, "model_learning_logs.pkl"),
-                "wb",
-            ) as f:
-                pickle.dump(model_learning_logs, f)
-
-            with open(
-                join(self.experiment_results_path, "planning_logs.pkl"), "wb"
-            ) as f:
-                pickle.dump(planning_logs, f)
-            print(f"\n[INFO] Files saved on {self.experiment_results_path}")
-
-        return option_learning_logs, model_learning_logs, planning_logs

@@ -243,6 +243,58 @@ class GridWorld:
         if file_name:
             plt.savefig(file_name, transparent=True, bbox_inches="tight")
         plt.show()
+    
+    def plot_room_with_states(self, file_name=None) -> None:
+        # Create RGB array (initialize with black/white)
+        rgb_array = self.__get_rgb_array()
+
+        # Create plot
+        plt.figure(figsize=(12, 15))
+        plt.imshow(rgb_array, interpolation="nearest", aspect="equal")
+
+        # Configure grid lines
+        plt.xticks(np.arange(-0.5, self.room_width, 1))
+        plt.yticks(np.arange(-0.5, self.room_height, 1))
+        plt.grid(which="major", color="black", linewidth=0.5)
+        plt.tick_params(
+            axis="both", which="both", length=0, labelbottom=False, labelleft=False
+        )
+
+        # Add state identifications
+        for state_idx, coords in self.state_idx_to_coordinates.items():
+            x, y = coords
+            # Skip walls and goal states as they are not in the state mapping
+            if self.room_array[y][x] not in [StateType.WALL, StateType.GOAL]:
+                plt.text(
+                    x, 
+                    y, 
+                    f"{state_idx}: {coords}", 
+                    ha='center', 
+                    va='center',
+                    fontsize=8,
+                    color='black'
+                )
+
+        # Mark the goal state
+        gx, gy = self.goal_state
+        plt.text(
+            gx, 
+            gy, 
+            "GOAL", 
+            ha='center', 
+            va='center',
+            fontsize=8,
+            color='white',
+            weight='bold'
+        )
+
+        # Mark current state with a blue dot
+        x, y = self.current_state
+        plt.plot(x, y, marker="o", color="blue", markersize=15, label="Current State")
+
+        if file_name:
+            plt.savefig(file_name, transparent=True, bbox_inches="tight", dpi=300)
+        plt.show()
 
     def __get_rgb_array(self) -> NDArray[np.floating]:
         rgb_array = np.zeros((self.room_height, self.room_width, 3))

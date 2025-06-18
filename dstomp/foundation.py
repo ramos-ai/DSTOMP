@@ -63,11 +63,9 @@ class Foundation:
         subgoals_state_idx: List[int],
         behavior_policy_probs: NDArray | None = None,
         gamma: float = 0.99,
-        successor_alpha: float = 0.1,
     ):
         self.env = env
         self.gamma = gamma
-        self.successor_alpha = successor_alpha
         self.subgoals_state = subgoals_state
         self.subgoals_state_idx = subgoals_state_idx
         self.num_subgoals = len(self.subgoals_state_idx)

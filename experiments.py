@@ -2,10 +2,11 @@ import os
 from datetime import datetime
 from enum import StrEnum
 from os.path import join
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 
+from environment.gridworld import State
 from environment.room_design import (
     larger_hallway_larger_room,
     larger_room,
@@ -28,6 +29,7 @@ class Experiment(BaseModel):
     off_policy_steps_for_successor_representation: int
     off_policy_steps_for_stomp_progression: int
     num_lookahead_operations: int
+    hallways_states_info: Optional[Dict[int, State]] = None
 
 
 __four_room_with_successor = Experiment(
@@ -37,6 +39,7 @@ __four_room_with_successor = Experiment(
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
     num_lookahead_operations=20_000,
+    hallways_states_info={51: (2, 6), 87: (6, 10), 62: (9, 7), 25: (6, 3)},
 )
 
 __larger_room_with_successor = Experiment(
@@ -63,7 +66,7 @@ def get_experiment(name: ExperimentsAvailable) -> Tuple[Experiment, str]:
     Get the experiment configuration by name.
     """
     experiment_folder_path = join(
-        "results", name, f'{datetime.now().strftime("%H:%M:%S - %d/%m/%Y")}'
+        "results", name, f"{datetime.now().strftime('%H:%M:%S - %d/%m/%Y')}"
     )
     os.makedirs(name=experiment_folder_path, exist_ok=True)
     if name == __four_room_with_successor.name:
