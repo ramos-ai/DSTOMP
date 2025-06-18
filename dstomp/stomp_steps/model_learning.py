@@ -50,11 +50,11 @@ class ModelLearning:
             if done:
                 state = self.foundation.env.reset()
                 state_features = self.foundation.env.get_one_hot_state(state)
-                self.foundation.e_options[subgoal_idx] = np.zeros(
+                self.foundation.e_rewards[subgoal_idx] = np.zeros(
                     self.foundation.env.num_states
                 )
-                self.foundation.e_policies[subgoal_idx] = np.zeros(
-                    self.foundation.env.num_states * self.foundation.env.num_actions
+                self.foundation.e_transitions[subgoal_idx] = np.zeros(
+                    (self.foundation.env.num_states, self.foundation.env.num_states)
                 )
                 continue
 
@@ -76,18 +76,19 @@ class ModelLearning:
             # Handling the stopping value and option probabilities
             if is_primitive_action:
                 stopping_value = None
+                should_stop = True
                 option_probs = np.ones(self.foundation.env.num_actions)
             else:
                 stopping_value = self.foundation.get_stopping_value(
                     next_state_features, subgoal_idx
                 )
+                should_stop = self.foundation.should_stop(
+                    next_state_features, subgoal_idx, stopping_value
+                )
                 option_probs = self.foundation.softmax_option_policy(
                     next_state, subgoal_idx
                 )
 
-            should_stop = self.foundation.should_stop(
-                next_state_features, subgoal_idx, stopping_value
-            )
             importance_sampling_ratio = (
                 option_probs[action] / self.foundation.behavior_policy_probs[action]
             )

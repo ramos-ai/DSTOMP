@@ -167,6 +167,7 @@ class DSTOMP:
 
         print("\n[INFO] Saving Successor...")
         save_files_path = join(self.experiment_results_path, experiment_folder_prefix)
+        os.makedirs(save_files_path, exist_ok=True)
         self.successor.save_successor(save_files_path)
 
         subgoal_states_info = {
@@ -175,6 +176,7 @@ class DSTOMP:
         }
 
         stomp_framework = STOMP(
+            env=self.successor.env,
             subgoal_states_info=subgoal_states_info,
             alpha=self.alpha,
             alpha_prime=self.alpha_prime,

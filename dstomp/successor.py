@@ -34,7 +34,7 @@ class Successor:
         )
     
     def save_successor(self, base_path: str):
-        np.save(join(f"{base_path}", "successor_representation.py"), self.successor)
+        np.save(join(f"{base_path}", "successor_representation.npy"), self.successor)
 
     def get_subgoals(
         self,
