@@ -16,6 +16,21 @@ SuccessorMatrix = NDArray[np.floating]
 
 
 @numba.jit(nopython=True)
+def _update_successor_fast(
+    successor_matrix: NDArray,
+    current_state_idx: int,
+    next_state_idx: int,
+    one_hot_features: NDArray,
+    successor_alpha: float,
+    gamma: float,
+) -> NDArray:
+    successor_matrix[current_state_idx] = (1 - successor_alpha) * successor_matrix[
+        current_state_idx
+    ] + successor_alpha * (one_hot_features + gamma * successor_matrix[next_state_idx])
+    return successor_matrix
+
+
+@numba.jit(nopython=True)
 def _compute_distances(features: NDArray, center: NDArray) -> NDArray:
     return np.sum((features - center) ** 2, axis=1)
 
@@ -77,48 +92,26 @@ class Successor:
         actions = np.random.choice(
             self.env.num_actions, size=off_policy_steps, p=self.behavior_policy_probs
         )
-        # Create transition matrices for each action
-        num_states = self.env.num_states
-        transition_matrices = np.zeros((self.env.num_actions, num_states, num_states))
-
-        # Pre-compute transition matrices for each action
-        for action_idx in range(self.env.num_actions):
-            action = Actions(action_idx)
-            for state_idx in range(num_states):
-                current_state = self.env.state_idx_to_coordinates[state_idx]
-                # Save current state to restore it later
-                orig_state = self.env.current_state
-                self.env.current_state = current_state
-                next_state, _, _ = self.env.step(action)
-                # Restore original state
-                self.env.current_state = orig_state
-                next_state_idx = self.env.state_coordinates_to_idx[next_state]
-                transition_matrices[action_idx, state_idx, next_state_idx] = 1
 
         current_state = self.env.current_state
-        num_batches = off_policy_steps // self.batch_size
+        for action in tqdm(actions):
+            action = Actions(action)
+            next_state, _, _ = self.env.step(action)
 
-        for batch in tqdm(range(num_batches)):
-            start_idx = batch * self.batch_size
-            end_idx = start_idx + self.batch_size
-            batch_actions = actions[start_idx:end_idx]
+            current_state_idx = self.env.state_coordinates_to_idx[current_state]
+            next_state_idx = self.env.state_coordinates_to_idx[next_state]
 
-            # Get transition matrices for this batch of actions
-            batch_transitions = transition_matrices[batch_actions]
-
-            # Compute next states for entire batch
-            next_states = np.einsum("bij,jk->bik", batch_transitions, self.successor)
-
-            # Update successor matrix using vectorized operations
-            # Shape: (batch_size, num_states, num_states)
-            updates = (
-                1 - self.successor_alpha
-            ) * self.successor + self.successor_alpha * (
-                self.one_hot_states + self.gamma * next_states
+            # Use pre-computed one-hot states and JIT-compiled update
+            self.successor = _update_successor_fast(
+                self.successor,
+                current_state_idx,
+                next_state_idx,
+                self.one_hot_states[current_state_idx],
+                self.successor_alpha,
+                self.gamma,
             )
 
-            # Average updates over the batch
-            self.successor = np.mean(updates, axis=0)
+            current_state = next_state
 
         return self.successor
 
