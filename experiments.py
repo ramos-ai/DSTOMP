@@ -27,6 +27,7 @@ class ExperimentsAvailable(StrEnum):
 class Experiment(BaseModel):
     name: str
     env_design: List[List[int]]
+    alpha_step_size: float
     num_subgoals_for_successor_representation: int
     off_policy_steps_for_successor_representation: int
     off_policy_steps_for_stomp_progression: int
@@ -37,6 +38,7 @@ class Experiment(BaseModel):
 __two_room_with_successor = Experiment(
     name="two_room_with_successor_representation",
     env_design=stomp_two_room_design,
+    alpha_step_size=1.0,
     num_subgoals_for_successor_representation=4,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=50_000,
@@ -47,6 +49,7 @@ __two_room_with_successor = Experiment(
 __four_room_with_successor = Experiment(
     name="four_room_with_successor_representation",
     env_design=stomp_four_room_design,
+    alpha_step_size=0.05,
     num_subgoals_for_successor_representation=5,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
@@ -57,6 +60,7 @@ __four_room_with_successor = Experiment(
 __larger_room_with_successor = Experiment(
     name="larger_room_with_successor_representation",
     env_design=larger_room,
+    alpha_step_size=0.05,
     num_subgoals_for_successor_representation=10,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
@@ -87,10 +91,25 @@ __larger_room_with_successor = Experiment(
 __larger_hallway_larger_room_with_successor = Experiment(
     name="larger_hallway_larger_room_with_successor_representation",
     env_design=larger_hallway_larger_room,
+    alpha_step_size=0.05,
     num_subgoals_for_successor_representation=10,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
     num_lookahead_operations=20_000,
+    hallways_states_info={
+        481: (15, 22),
+        479: (8, 22),
+        483: (20, 22),
+        484: (22, 22),
+        486: (25, 22),
+        111: (26, 5),
+        83: (14, 4),
+        41: (15, 22),
+        28: (2, 2),
+        381: (2, 18),
+        119: (6, 6),
+        436: (10, 20)
+    },
 )
 
 

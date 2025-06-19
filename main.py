@@ -14,7 +14,7 @@ from experiments import ExperimentsAvailable, get_experiment
 num_runs = 100
 all_runs = []
 experiment, experiment_results_path = get_experiment(
-    ExperimentsAvailable.LARGER_HALLWAY_LARGER_ROOM_WITH_SUCCESSOR
+    ExperimentsAvailable.TWO_ROOM_WITH_SUCCESSOR
 )
 
 
@@ -25,12 +25,22 @@ def run_experiment(run_idx: int):
         env=env,
         subgoal_states_info=experiment.hallways_states_info,
         experiment_results_path=result_folder_path,
+        alpha_step_size=experiment.alpha_step_size,
     )
     dstomp = DSTOMP(
         env=env,
         num_subgoals=experiment.num_subgoals_for_successor_representation,
         off_policy_steps_for_successor_representation=experiment.off_policy_steps_for_successor_representation,
         experiment_results_path=result_folder_path,
+        alpha_step_size=experiment.alpha_step_size,
+    )
+    dstomp_reward_awareness = DSTOMP(
+        env=env,
+        num_subgoals=experiment.num_subgoals_for_successor_representation,
+        off_policy_steps_for_successor_representation=experiment.off_policy_steps_for_successor_representation,
+        experiment_results_path=result_folder_path,
+        alpha_step_size=experiment.alpha_step_size,
+        successor_reward_awareness=True,
     )
 
     env.reset()
@@ -49,6 +59,15 @@ def run_experiment(run_idx: int):
         )
     )
 
+    (
+        dstomp_reward_awareness_option_learning_logs,
+        dstomp_reward_awareness_model_learning_logs,
+        dstomp_reward_awareness_planning_logs,
+    ) = dstomp_reward_awareness.execute(
+        off_policy_steps=experiment.off_policy_steps_for_stomp_progression,
+        num_lookahead_operations=experiment.num_lookahead_operations,
+    )
+
     result = {
         "stomp": {
             "option_learning": stomp_option_learning_logs,
@@ -59,6 +78,11 @@ def run_experiment(run_idx: int):
             "option_learning": dstomp_option_learning_logs,
             "model_learning": dstomp_model_learning_logs,
             "planning": dstomp_planning_logs,
+        },
+        "dstomp_reward_awareness": {
+            "option_learning": dstomp_reward_awareness_option_learning_logs,
+            "model_learning": dstomp_reward_awareness_model_learning_logs,
+            "planning": dstomp_reward_awareness_planning_logs,
         },
     }
 
@@ -75,32 +99,32 @@ with Pool(processes=num_processes) as pool:
 with open(join(experiment_results_path, "all_runs.pkl"), "wb") as f:
     pickle.dump(all_runs, f)
 
-stomp_option_learning_logs = []
-stomp_planning_logs = []
-dstomp_option_learning_logs = []
-dstomp_planning_logs = []
-for run in all_runs:
-    stomp_option_learning_logs.append(run['stomp']['option_learning'])
-    stomp_planning_logs.append(run['stomp']['planning'])
-    dstomp_option_learning_logs.append(run['dstomp']['option_learning'])
-    dstomp_planning_logs.append(run['dstomp']['planning'])
 
-stomp_option_learning_logs_mean = np.mean(stomp_option_learning_logs, axis=0)
-stomp_option_learning_logs_std = np.std(stomp_option_learning_logs, axis=0)
-stomp_planning_mean = np.mean(stomp_planning_logs, axis=0)
-stomp_planning_std = np.std(stomp_planning_logs, axis=0)
+def get_mean_std_arrays(model_name: str, step_name: str, all_runs: list):
+    logs = []
+    for run in all_runs:
+        logs.append(run[model_name][step_name])
+    return np.mean(logs, axis=0), np.std(logs, axis=0)
 
-dstomp_option_learning_logs_mean = np.mean(dstomp_option_learning_logs, axis=0)
-dstomp_option_learning_logs_std = np.std(dstomp_option_learning_logs, axis=0)
-dstomp_planning_mean = np.mean(dstomp_planning_logs, axis=0)
-dstomp_planning_std = np.std(dstomp_planning_logs, axis=0)
+
+stomp_planning_mean, stomp_planning_std = get_mean_std_arrays(
+    "stomp", "planning", all_runs
+)
+dstomp_planning_mean, dstomp_planning_std = get_mean_std_arrays(
+    "dstomp", "planning", all_runs
+)
+dstomp_reward_awareness_planning_mean, dstomp_reward_awareness_planning_std = (
+    get_mean_std_arrays("dstomp_reward_awareness", "planning", all_runs)
+)
 
 
 def plot_arrays(mean_arrays, std_arrays, colors, labels, plotting_info, plotting_name):
     # Create figure and axis
     plt.figure(figsize=(20, 6))
 
-    for mean_array, std_array, color, label in zip(mean_arrays, std_arrays, colors, labels):
+    for mean_array, std_array, color, label in zip(
+        mean_arrays, std_arrays, colors, labels
+    ):
         # Generate x-axis points (assuming these are sequential steps/episodes)
         x = np.arange(len(mean_array))
 
@@ -126,6 +150,7 @@ def plot_arrays(mean_arrays, std_arrays, colors, labels, plotting_info, plotting
     save_fig_path = join(experiment_results_path, f"{plotting_name}.png")
     plt.savefig(f"{save_fig_path}", bbox_inches="tight")
 
+
 # for subgoal_idx in range(len(option_learning_logs_mean)):
 #     plot_arrays(
 #         option_learning_logs_mean[subgoal_idx],
@@ -139,10 +164,10 @@ def plot_arrays(mean_arrays, std_arrays, colors, labels, plotting_info, plotting
 #     )
 
 plot_arrays(
-    [stomp_planning_mean, dstomp_planning_mean],
-    [stomp_planning_std, dstomp_planning_std],
-    ['b', 'g'],
-    ['STOMP', 'Dynamic STOMP'],
+    [stomp_planning_mean, dstomp_planning_mean, dstomp_reward_awareness_planning_mean],
+    [stomp_planning_std, dstomp_planning_std, dstomp_reward_awareness_planning_std],
+    ["b", "g", "r"],
+    ["STOMP", "Dynamic STOMP", "Dynamic STOMP - Reward Awareness"],
     {
         "xlabel": "Number of Planning Look-ahead Operations",
         "ylabel": "Initial State Estimative: v_hat(s0)",
@@ -150,4 +175,3 @@ plot_arrays(
     },
     "planning_with_options",
 )
-

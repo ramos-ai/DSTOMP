@@ -128,6 +128,7 @@ class DSTOMP:
         lambda_: float = 0,
         lambda_prime: float = 0,
         successor_alpha: float = 0.1,
+        successor_reward_awareness: bool = False,
         num_subgoals: int | None = None,
         seed: int | None = 42,
         off_policy_steps_for_successor_representation: int = 50_000,
@@ -147,7 +148,7 @@ class DSTOMP:
             off_policy_steps_for_successor_representation
         )
         self.seed = seed
-        self.successor = Successor(env, successor_alpha, gamma)
+        self.successor = Successor(env, successor_alpha, gamma, successor_reward_awareness)
         self.experiment_results_path = experiment_results_path
 
     def execute(
@@ -157,6 +158,8 @@ class DSTOMP:
         experiment_folder_prefix: str = "dstomp",
     ):
         print("[INFO] Starting Dynamic STOMP execution...\n")
+        if self.successor.reward_awareness:
+            print("[INFO] Calculating Reward Awareness Successor Representation\n")
         print("[INFO] Finding bottleneck states using Successor Representation")
 
         subagoals_state_idx, subgoals_state = self.successor.get_subgoals(

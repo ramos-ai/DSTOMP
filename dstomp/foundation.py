@@ -50,7 +50,9 @@ def _vec_uwt_compute(
     gamma_lambda: float,
 ) -> tuple[NDArray, NDArray]:
     e = rho * (e + gradient)
-    w = w + alpha_delta_vec.reshape(-1, 1) * e
+    w = w + alpha_delta_vec[:, np.newaxis] * e
+    # w = w + np.einsum("i,ij->ij", alpha_delta_vec, e)
+    # w = w + alpha_delta_vec.reshape(-1, 1) * e
     e = gamma_lambda * e
     return w, e
 

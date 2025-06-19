@@ -37,10 +37,14 @@ def _compute_distances(features: NDArray, center: NDArray) -> NDArray:
 
 class Successor:
     def __init__(
-        self, env: GridWorld, successor_alpha=0.1, gamma=0.99, batch_size: int = 1000
+        self,
+        env: GridWorld,
+        successor_alpha: float = 0.1,
+        gamma: float = 0.99,
+        reward_awareness: bool = False,
     ):
         self.gamma = gamma
-        self.batch_size = batch_size
+        self.reward_awareness = reward_awareness
 
         self.env = env
         self.unimportant_states_for_successor = [StateType.WALL]
@@ -96,17 +100,22 @@ class Successor:
         current_state = self.env.current_state
         for action in tqdm(actions):
             action = Actions(action)
-            next_state, _, _ = self.env.step(action)
+            next_state, reward, _ = self.env.step(action)
 
             current_state_idx = self.env.state_coordinates_to_idx[current_state]
             next_state_idx = self.env.state_coordinates_to_idx[next_state]
 
             # Use pre-computed one-hot states and JIT-compiled update
+            one_hot_features = (
+                self.one_hot_states[current_state_idx] * reward
+                if self.reward_awareness
+                else self.one_hot_states[current_state_idx]
+            )
             self.successor = _update_successor_fast(
                 self.successor,
                 current_state_idx,
                 next_state_idx,
-                self.one_hot_states[current_state_idx],
+                one_hot_features,
                 self.successor_alpha,
                 self.gamma,
             )

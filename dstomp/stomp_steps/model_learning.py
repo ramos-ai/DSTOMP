@@ -98,34 +98,54 @@ class ModelLearning:
                 self.foundation.gamma * self.lambda_ * (1 - should_stop),
             )
 
+            for j in range(self.foundation.env.num_states):
+                delta_n = self.foundation.td_error(
+                    0,
+                    next_state_features[j],
+                    self.foundation.W_transitions[option_idx][j] @ state_features,
+                    self.foundation.W_transitions[option_idx][j] @ next_state_features,
+                    int(should_stop),
+                )
+                (
+                    self.foundation.W_transitions[option_idx][j],
+                    self.foundation.e_transitions[option_idx][j],
+                ) = self.foundation.UWT(
+                    self.foundation.W_transitions[option_idx][j],
+                    self.foundation.e_transitions[option_idx][j],
+                    state_features,
+                    self.alpha_p * delta_n,
+                    importance_sampling_ratio,
+                    self.foundation.gamma * self.lambda_ * (1 - int(should_stop)),
+                )
+
             # Learning the Transition model
             # In the original paper, the transition model is learned for each state
             # We introduce a vectorized version of the transition model learning
-            predicted_state_feature = (
-                self.foundation.W_transitions[option_idx] @ state_features
-            )
-            predicted_next_state_feature = (
-                self.foundation.W_transitions[option_idx] @ next_state_features
-            )
-            delta_vec = self.foundation.td_error(
-                0,
-                next_state_features,
-                predicted_state_feature,
-                predicted_next_state_feature,
-                should_stop,
-            )
+            # predicted_state_feature = (
+            #     self.foundation.W_transitions[option_idx] @ state_features
+            # )
+            # predicted_next_state_feature = (
+            #     self.foundation.W_transitions[option_idx] @ next_state_features
+            # )
+            # delta_vec = self.foundation.td_error(
+            #     0,
+            #     next_state_features,
+            #     predicted_state_feature,
+            #     predicted_next_state_feature,
+            #     should_stop,
+            # )
 
-            (
-                self.foundation.W_transitions[option_idx],
-                self.foundation.e_transitions[option_idx],
-            ) = self.foundation.vecUWT(
-                self.foundation.W_transitions[option_idx],
-                self.foundation.e_transitions[option_idx],
-                state_features.reshape(-1, 1),
-                self.alpha_p * delta_vec,
-                importance_sampling_ratio,
-                self.foundation.gamma * self.lambda_ * (1 - should_stop),
-            )
+            # (
+            #     self.foundation.W_transitions[option_idx],
+            #     self.foundation.e_transitions[option_idx],
+            # ) = self.foundation.vecUWT(
+            #     self.foundation.W_transitions[option_idx],
+            #     self.foundation.e_transitions[option_idx],
+            #     state_features,
+            #     self.alpha_p * delta_vec,
+            #     importance_sampling_ratio,
+            #     self.foundation.gamma * self.lambda_ * (1 - should_stop),
+            # )
 
             # Check the predicted values from the linear models
             predicted_reward = self.foundation.w_rewards[option_idx] @ state_features

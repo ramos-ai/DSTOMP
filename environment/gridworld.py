@@ -165,7 +165,7 @@ class GridWorld:
         rgb_array = self.__get_rgb_array()
 
         # Create plot
-        plt.figure(figsize=(8, 10))
+        plt.figure(figsize=(24, 30))
         plt.imshow(rgb_array, interpolation="nearest", aspect="equal")
 
         # Configure grid lines
@@ -190,7 +190,7 @@ class GridWorld:
         policy_matrix = policy_probs.reshape(self.num_states, self.num_actions)
         rgb_array = self.__get_rgb_array()
 
-        plt.figure(figsize=(8, 10))
+        plt.figure(figsize=(24, 30))
         plt.imshow(rgb_array, interpolation="nearest", aspect="equal")
 
         # Arrow properties
