@@ -33,10 +33,6 @@ class OptionLearning:
         initial_state_estimative = []
 
         for step in tqdm(range(off_policy_steps)):
-            initial_state_estimative.append(
-                self.foundation.w_subgoal[subgoal_idx] @ initial_state_features
-            )
-
             # Chose and execute an action from the equiprobable policy
             a = np.random.choice(
                 self.foundation.env.num_actions, p=self.foundation.behavior_policy_probs
@@ -44,36 +40,25 @@ class OptionLearning:
             action = Actions(a)
             next_state, reward, done = self.foundation.env.step(action)
 
-            # If we reach the goal, then we reset the state and the eligibility traces
-            if done:
-                state = self.foundation.env.reset()
-                state_features = self.foundation.env.get_one_hot_state(state)
-                self.foundation.e_options[subgoal_idx] = np.zeros(
-                    self.foundation.env.num_states
-                )
-                self.foundation.e_policies[subgoal_idx] = np.zeros(
-                    self.foundation.env.num_states * self.foundation.env.num_actions
-                )
-                continue
-
-            next_state_features = self.foundation.env.get_one_hot_state(next_state)
-            state_action_features = self.foundation.env.get_one_hot_state_action(
-                state, action
-            )
-
-            # Calculating the stopping value and checking if the option needs to stop or not
-            stopping_value = self.foundation.get_stopping_value(
-                next_state_features, subgoal_idx
-            )
-            should_stop = self.foundation.should_stop(
-                next_state_features, subgoal_idx, stopping_value
-            )
-
             # Calculating the importance sampling ratio for off-policy learning
             option_probs = self.foundation.softmax_option_policy(state, subgoal_idx)
             importance_sampling_ratio = (
                 option_probs[action] / self.foundation.behavior_policy_probs[action]
             )
+
+            if done:
+                next_state_features = np.zeros_like(state_features)
+                stopping_value = 0
+                should_stop = True
+            else:
+                next_state_features = self.foundation.env.get_one_hot_state(next_state)
+                # Calculating the stopping value and checking if the option needs to stop or not
+                stopping_value = self.foundation.get_stopping_value(
+                    next_state_features, subgoal_idx
+                )
+                should_stop = self.foundation.should_stop(
+                    next_state_features, subgoal_idx, stopping_value
+                )
 
             # Calculating TD Error
             delta = self.foundation.td_error(
@@ -98,6 +83,9 @@ class OptionLearning:
             )
 
             # Learning Option Policy
+            state_action_features = self.foundation.env.get_one_hot_state_action(
+                state, action
+            )
             (
                 self.foundation.theta_subgoal[subgoal_idx],
                 self.foundation.e_policies[subgoal_idx],
@@ -109,6 +97,22 @@ class OptionLearning:
                 importance_sampling_ratio,
                 self.foundation.gamma * self.lambda_prime * (1 - should_stop),
             )
+
+            initial_state_estimative.append(
+                self.foundation.w_subgoal[subgoal_idx] @ initial_state_features
+            )
+
+            # If we reach the goal, then we reset the state and the eligibility traces
+            if done:
+                state = self.foundation.env.reset()
+                state_features = self.foundation.env.get_one_hot_state(state)
+                self.foundation.e_options[subgoal_idx] = np.zeros(
+                    self.foundation.env.num_states
+                )
+                self.foundation.e_policies[subgoal_idx] = np.zeros(
+                    self.foundation.env.num_states * self.foundation.env.num_actions
+                )
+                continue
 
             # Moving to the next state
             state = next_state

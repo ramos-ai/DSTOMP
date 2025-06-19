@@ -46,48 +46,30 @@ class ModelLearning:
             action = Actions(a)
             next_state, reward, done = self.foundation.env.step(action)
 
-            # If we reach the goal, then we reset the state and the eligibility traces
-            if done:
-                state = self.foundation.env.reset()
-                state_features = self.foundation.env.get_one_hot_state(state)
-                self.foundation.e_rewards[subgoal_idx] = np.zeros(
-                    self.foundation.env.num_states
-                )
-                self.foundation.e_transitions[subgoal_idx] = np.zeros(
-                    (self.foundation.env.num_states, self.foundation.env.num_states)
-                )
-                continue
-
-            next_state_features = self.foundation.env.get_one_hot_state(next_state)
-
-            # Check the predicted values from the linear models
-            predicted_reward = self.foundation.w_rewards[option_idx] @ state_features
-            reward_model_error = predicted_reward - reward
-            reward_model_errors.append(reward_model_error)
-
-            predicted_transition = (
-                self.foundation.W_transitions[option_idx] @ state_features
+            next_state_features = (
+                np.zeros_like(state_features)
+                if done
+                else self.foundation.env.get_one_hot_state(next_state)
             )
-            transition_model_error = np.linalg.norm(
-                predicted_transition - next_state_features
-            )
-            transition_model_errors.append(transition_model_error)
 
             # Handling the stopping value and option probabilities
-            if is_primitive_action:
-                stopping_value = None
+            if is_primitive_action or done:
+                stopping_value = 0
                 should_stop = True
-                option_probs = np.ones(self.foundation.env.num_actions)
             else:
+                # Calculating the stopping value and checking if the option needs to stop or not
                 stopping_value = self.foundation.get_stopping_value(
                     next_state_features, subgoal_idx
                 )
                 should_stop = self.foundation.should_stop(
                     next_state_features, subgoal_idx, stopping_value
                 )
-                option_probs = self.foundation.softmax_option_policy(
-                    next_state, subgoal_idx
-                )
+
+            option_probs = (
+                np.ones(self.foundation.env.num_actions)
+                if is_primitive_action
+                else self.foundation.softmax_option_policy(state, subgoal_idx)
+            )
 
             importance_sampling_ratio = (
                 option_probs[action] / self.foundation.behavior_policy_probs[action]
@@ -144,6 +126,31 @@ class ModelLearning:
                 importance_sampling_ratio,
                 self.foundation.gamma * self.lambda_ * (1 - should_stop),
             )
+
+            # Check the predicted values from the linear models
+            predicted_reward = self.foundation.w_rewards[option_idx] @ state_features
+            reward_model_error = predicted_reward - reward
+            reward_model_errors.append(reward_model_error)
+
+            predicted_transition = (
+                self.foundation.W_transitions[option_idx] @ state_features
+            )
+            transition_model_error = np.linalg.norm(
+                predicted_transition - next_state_features
+            )
+            transition_model_errors.append(transition_model_error)
+
+            # If we reach the goal, then we reset the state and the eligibility traces
+            if done:
+                state = self.foundation.env.reset()
+                state_features = self.foundation.env.get_one_hot_state(state)
+                self.foundation.e_rewards[subgoal_idx] = np.zeros(
+                    self.foundation.env.num_states
+                )
+                self.foundation.e_transitions[subgoal_idx] = np.zeros(
+                    (self.foundation.env.num_states, self.foundation.env.num_states)
+                )
+                continue
 
             # Moving to the next state
             state = next_state

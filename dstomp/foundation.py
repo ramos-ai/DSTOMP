@@ -9,7 +9,7 @@ from environment.gridworld import Actions, GridWorld, State
 
 
 @numba.jit(nopython=True)
-def td_error_compute(
+def _td_error_compute(
     cumulant: float,
     stopping_value: float,
     current_value: float,
@@ -26,7 +26,7 @@ def td_error_compute(
 
 
 @numba.jit(nopython=True)
-def uwt_compute(
+def _uwt_compute(
     w: NDArray,
     e: NDArray,
     gradient: NDArray,
@@ -41,7 +41,7 @@ def uwt_compute(
 
 
 @numba.jit(nopython=True)
-def vec_uwt_compute(
+def _vec_uwt_compute(
     w: NDArray,
     e: NDArray,
     gradient: NDArray,
@@ -185,7 +185,7 @@ class Foundation:
         next_value: float | NDArray[np.floating],
         stopping_prob: bool | int,
     ) -> float:
-        return td_error_compute(
+        return _td_error_compute(
             cumulant,
             stopping_value,
             current_value,
@@ -203,7 +203,7 @@ class Foundation:
         rho: float,
         gamma_lambda: float,
     ) -> tuple[NDArray, NDArray]:
-        return uwt_compute(w, e, gradient, alpha_delta, rho, gamma_lambda)
+        return _uwt_compute(w, e, gradient, alpha_delta, rho, gamma_lambda)
 
     def vecUWT(
         self,
@@ -214,4 +214,4 @@ class Foundation:
         rho: float,
         gamma_lambda: float,
     ) -> tuple[NDArray, NDArray]:
-        return vec_uwt_compute(w, e, gradient, alpha_delta_vec, rho, gamma_lambda)
+        return _vec_uwt_compute(w, e, gradient, alpha_delta_vec, rho, gamma_lambda)

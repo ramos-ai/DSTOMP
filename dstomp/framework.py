@@ -156,7 +156,7 @@ class DSTOMP:
         off_policy_steps: int = 50_000,
         experiment_folder_prefix: str = "dstomp",
     ):
-        print("[INFO] Starting DSTOMP execution...\n")
+        print("[INFO] Starting Dynamic STOMP execution...\n")
         print("[INFO] Finding bottleneck states using Successor Representation")
 
         subagoals_state_idx, subgoals_state = self.successor.get_subgoals(
@@ -187,7 +187,6 @@ class DSTOMP:
             lambda_prime=self.lambda_prime,
         )
 
-        print("\n[INFO] Starting STOMP framework")
         return stomp_framework.execute(
             num_lookahead_operations, off_policy_steps, experiment_folder_prefix
         )
