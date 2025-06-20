@@ -107,7 +107,7 @@ class Successor:
 
             # Use pre-computed one-hot states and JIT-compiled update
             one_hot_features = (
-                self.one_hot_states[current_state_idx] * reward
+                self.one_hot_states[current_state_idx] * np.exp(reward)
                 if self.reward_awareness
                 else self.one_hot_states[current_state_idx]
             )
