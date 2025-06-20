@@ -5,7 +5,6 @@ from os.path import join
 
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
 
 from dstomp.framework import DSTOMP, STOMP
 from environment.gridworld import GridWorld
@@ -20,7 +19,9 @@ experiment, experiment_results_path = get_experiment(
 
 def run_experiment(run_idx: int):
     result_folder_path = join(experiment_results_path, f"run_{run_idx}")
-    env = GridWorld(experiment.env_design)
+    env = GridWorld(
+        room_array=experiment.env_design, success_prob=experiment.env_success_prob
+    )
     stomp = STOMP(
         env=env,
         subgoal_states_info=experiment.hallways_states_info,
@@ -45,76 +46,73 @@ def run_experiment(run_idx: int):
 
     env.reset()
 
-    stomp_option_learning_logs, stomp_model_learning_logs, stomp_planning_logs = (
-        stomp.execute(
-            off_policy_steps=experiment.off_policy_steps_for_stomp_progression,
-            num_lookahead_operations=experiment.num_lookahead_operations,
-        )
-    )
-
-    dstomp_option_learning_logs, dstomp_model_learning_logs, dstomp_planning_logs = (
-        dstomp.execute(
-            off_policy_steps=experiment.off_policy_steps_for_stomp_progression,
-            num_lookahead_operations=experiment.num_lookahead_operations,
-        )
-    )
-
-    (
-        dstomp_reward_awareness_option_learning_logs,
-        dstomp_reward_awareness_model_learning_logs,
-        dstomp_reward_awareness_planning_logs,
-    ) = dstomp_reward_awareness.execute(
+    stomp.execute(
         off_policy_steps=experiment.off_policy_steps_for_stomp_progression,
         num_lookahead_operations=experiment.num_lookahead_operations,
     )
 
-    result = {
-        "stomp": {
-            "option_learning": stomp_option_learning_logs,
-            "model_learning": stomp_model_learning_logs,
-            "planning": stomp_planning_logs,
-        },
-        "dstomp": {
-            "option_learning": dstomp_option_learning_logs,
-            "model_learning": dstomp_model_learning_logs,
-            "planning": dstomp_planning_logs,
-        },
-        "dstomp_reward_awareness": {
-            "option_learning": dstomp_reward_awareness_option_learning_logs,
-            "model_learning": dstomp_reward_awareness_model_learning_logs,
-            "planning": dstomp_reward_awareness_planning_logs,
-        },
-    }
+    env.reset()
 
-    return result
+    dstomp.execute(
+        off_policy_steps=experiment.off_policy_steps_for_stomp_progression,
+        num_lookahead_operations=experiment.num_lookahead_operations,
+    )
+
+    env.reset()
+
+    dstomp_reward_awareness.execute(
+        off_policy_steps=experiment.off_policy_steps_for_stomp_progression,
+        num_lookahead_operations=experiment.num_lookahead_operations,
+    )
+
 
 
 cpus_available = os.cpu_count()
 num_processes = 0 if cpus_available is None else cpus_available - 1
-print(f"Running with {num_processes} processes\n")
+print(f"Running with {num_runs} runs, with {num_processes} processes\n")
 
 with Pool(processes=num_processes) as pool:
-    all_runs = list(tqdm(pool.map(run_experiment, range(num_runs)), total=num_runs))
-
-with open(join(experiment_results_path, "all_runs.pkl"), "wb") as f:
-    pickle.dump(all_runs, f)
+    pool.map(run_experiment, range(num_runs))
 
 
-def get_mean_std_arrays(model_name: str, step_name: str, all_runs: list):
+def collect_logs(
+    base_results_path: str, model_name: str, log_filename: str, num_runs: int = 30
+):
     logs = []
-    for run in all_runs:
-        logs.append(run[model_name][step_name])
-    return np.mean(logs, axis=0), np.std(logs, axis=0)
+    for idx in range(num_runs):
+        log_path = os.path.join(
+            base_results_path, f"run_{idx}", model_name, log_filename
+        )
+        if os.path.exists(log_path):
+            with open(log_path, "rb") as f:
+                logs.append(pickle.load(f))
+        else:
+            print(f"Warning: {log_path} does not exist.")
+    return logs
 
 
-stomp_planning_mean, stomp_planning_std = get_mean_std_arrays(
-    "stomp", "planning", all_runs
+stomp_planning_logs = collect_logs(
+    experiment_results_path, "stomp", "planning_logs.pkl", num_runs
 )
-dstomp_planning_mean, dstomp_planning_std = get_mean_std_arrays(
-    "dstomp", "planning", all_runs
+dstomp_planning_logs = collect_logs(
+    experiment_results_path, "dstomp", "planning_logs.pkl", num_runs
+)
+dstomp_reward_awareness_planning_logs = collect_logs(
+    experiment_results_path, "dstomp_reward_awareness", "planning_logs.pkl", num_runs
+)
+
+
+stomp_planning_mean, stomp_planning_std = (
+    np.mean(stomp_planning_logs, axis=0),
+    np.std(stomp_planning_logs, axis=0),
+)
+dstomp_planning_mean, dstomp_planning_std = (
+    np.mean(dstomp_planning_logs, axis=0),
+    np.std(dstomp_planning_logs, axis=0),
 )
 dstomp_reward_awareness_planning_mean, dstomp_reward_awareness_planning_std = (
-    get_mean_std_arrays("dstomp_reward_awareness", "planning", all_runs)
+    np.mean(dstomp_reward_awareness_planning_logs, axis=0),
+    np.std(dstomp_reward_awareness_planning_logs, axis=0),
 )
 
 

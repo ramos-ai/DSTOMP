@@ -160,6 +160,7 @@ class DSTOMP:
         print("[INFO] Starting Dynamic STOMP execution...\n")
         if self.successor.reward_awareness:
             print("[INFO] Calculating Reward Awareness Successor Representation\n")
+            experiment_folder_prefix = experiment_folder_prefix + '_reward_awareness'
         print("[INFO] Finding bottleneck states using Successor Representation")
 
         subagoals_state_idx, subgoals_state = self.successor.get_subgoals(
@@ -188,8 +189,9 @@ class DSTOMP:
             alpha_step_size=self.alpha_step_size,
             lambda_=self.lambda_,
             lambda_prime=self.lambda_prime,
+            experiment_results_path=save_files_path
         )
 
         return stomp_framework.execute(
-            num_lookahead_operations, off_policy_steps, experiment_folder_prefix
+            num_lookahead_operations, off_policy_steps, ""
         )

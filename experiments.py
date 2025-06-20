@@ -18,6 +18,9 @@ from environment.room_design import (
 class ExperimentsAvailable(StrEnum):
     TWO_ROOM_WITH_SUCCESSOR = "two_room_with_successor_representation"
     FOUR_ROOM_WITH_SUCCESSOR = "four_room_with_successor_representation"
+    FOUR_ROOM_STOCHASTIC_WITH_SUCCESSOR = (
+        "four_room_stochastic_with_successor_representation"
+    )
     LARGER_ROOM_WITH_SUCCESSOR = "larger_room_with_successor_representation"
     LARGER_HALLWAY_LARGER_ROOM_WITH_SUCCESSOR = (
         "larger_hallway_larger_room_with_successor_representation"
@@ -27,6 +30,7 @@ class ExperimentsAvailable(StrEnum):
 class Experiment(BaseModel):
     name: str
     env_design: List[List[int]]
+    env_success_prob: Optional[float] = 1.0
     alpha_step_size: float
     num_subgoals_for_successor_representation: int
     off_policy_steps_for_successor_representation: int
@@ -38,6 +42,7 @@ class Experiment(BaseModel):
 __two_room_with_successor = Experiment(
     name="two_room_with_successor_representation",
     env_design=stomp_two_room_design,
+    env_success_prob=1.0,
     alpha_step_size=1.0,
     num_subgoals_for_successor_representation=4,
     off_policy_steps_for_successor_representation=int(10e6),
@@ -49,6 +54,19 @@ __two_room_with_successor = Experiment(
 __four_room_with_successor = Experiment(
     name="four_room_with_successor_representation",
     env_design=stomp_four_room_design,
+    env_success_prob=1.0,
+    alpha_step_size=0.05,
+    num_subgoals_for_successor_representation=5,
+    off_policy_steps_for_successor_representation=int(10e6),
+    off_policy_steps_for_stomp_progression=500_000,
+    num_lookahead_operations=20_000,
+    hallways_states_info={51: (2, 6), 87: (6, 10), 62: (9, 7), 25: (6, 3)},
+)
+
+__four_room_stochastic_with_successor = Experiment(
+    name="four_room_stochastic_with_successor_representation",
+    env_design=stomp_four_room_design,
+    env_success_prob=2 / 3,
     alpha_step_size=0.05,
     num_subgoals_for_successor_representation=5,
     off_policy_steps_for_successor_representation=int(10e6),
@@ -60,6 +78,7 @@ __four_room_with_successor = Experiment(
 __larger_room_with_successor = Experiment(
     name="larger_room_with_successor_representation",
     env_design=larger_room,
+    env_success_prob=1.0,
     alpha_step_size=0.05,
     num_subgoals_for_successor_representation=10,
     off_policy_steps_for_successor_representation=int(10e6),
@@ -92,6 +111,7 @@ __larger_hallway_larger_room_with_successor = Experiment(
     name="larger_hallway_larger_room_with_successor_representation",
     env_design=larger_hallway_larger_room,
     alpha_step_size=0.05,
+    env_success_prob=1.0,
     num_subgoals_for_successor_representation=10,
     off_policy_steps_for_successor_representation=int(10e6),
     off_policy_steps_for_stomp_progression=500_000,
@@ -108,7 +128,7 @@ __larger_hallway_larger_room_with_successor = Experiment(
         28: (2, 2),
         381: (2, 18),
         119: (6, 6),
-        436: (10, 20)
+        436: (10, 20),
     },
 )
 
@@ -125,6 +145,8 @@ def get_experiment(name: ExperimentsAvailable) -> Tuple[Experiment, str]:
         return __two_room_with_successor, experiment_folder_path
     elif name == __four_room_with_successor.name:
         return __four_room_with_successor, experiment_folder_path
+    elif name == __four_room_stochastic_with_successor.name:
+        return __four_room_stochastic_with_successor, experiment_folder_path
     elif name == __larger_room_with_successor.name:
         return __larger_room_with_successor, experiment_folder_path
     elif name == __larger_hallway_larger_room_with_successor.name:
